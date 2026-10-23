@@ -4,7 +4,7 @@
 <section id="login" class="panel"><h2>تسجيل الدخول</h2><p class="notice">اللوحة متاحة على رابط معاينة عام، لكن قراءة وتعديل البيانات يتطلبان حسابًا مصرحًا له في Supabase. لا تشارك بيانات دخولك.</p>
 <div id="setup"><label for="key">مفتاح النشر العام من Supabase (sb_publishable_)</label><input id="key" type="text" autocomplete="off" placeholder="sb_publishable_..."><small>يُحفظ على جهازك فقط لتشغيل لوحة المعاينة، وليس في GitHub. لا تضع Secret أو service_role هنا.</small></div>
 <form id="loginForm"><label for="email">البريد الإلكتروني</label><input id="email" type="email" autocomplete="username" required><label for="password">كلمة المرور</label><input id="password" type="password" autocomplete="current-password" required><div style="margin-top:14px"><button type="submit">دخول</button></div></form></section>
-<section id="dashboard"><div class="toolbar"><div><h2>اليخوت المحفوظة</h2><small id="who"></small></div><div><button class="green" id="add">+ إضافة يخت</button> <button class="secondary" id="logout">خروج</button></div></div><p class="notice">هذه بيانات Supabase الحقيقية، لكنها لا تظهر بعد على موقع العملاء. اليخوت الأربعة الموجودة في الموقع الأصلي لم تُنقل لقاعدة البيانات بعد. الترجمة الإنجليزية التلقائية لم تُفعّل بعد.</p><div id="cards" class="cards"></div>
+<section id="dashboard"><div class="toolbar"><div><h2>اليخوت المحفوظة</h2><small id="who"></small></div><div><button class="green" id="add">+ إضافة يخت</button> <button class="secondary" id="importOriginal">استيراد اليخوت الأربعة الأصلية</button> <button class="secondary" id="logout">خروج</button></div></div><p class="notice">هذه بيانات Supabase الحقيقية، لكنها لا تظهر بعد على موقع العملاء. اليخوت الأربعة الموجودة في الموقع الأصلي لم تُنقل لقاعدة البيانات بعد. الترجمة الإنجليزية التلقائية لم تُفعّل بعد.</p><div id="cards" class="cards"></div>
 <section id="editor" class="panel"><h2 id="editorTitle">إضافة يخت</h2><form id="yachtForm"><div class="fields"><div><label>اسم اليخت بالعربي</label><input id="name" required maxlength="120"></div><div><label>الطول بالقدم</label><input id="length" type="number" min="1" step="0.1" required></div><div><label>السعر بالساعة (درهم)</label><input id="price" type="number" min="0" step="0.01" required></div><div><label>عدد الأشخاص</label><input id="capacity" type="number" min="1" required></div><div><label>غرف النوم</label><input id="bedrooms" type="number" min="0" value="0"></div><div><label>الحمامات</label><input id="bathrooms" type="number" min="0" value="0"></div><div><label>سعر الصيد (اختياري)</label><input id="fishing" type="number" min="0" step="0.01"></div><div><label>مطبخ</label><input id="kitchen" type="checkbox" style="width:auto"> يوجد مطبخ</div><div style="grid-column:1/-1"><label>المواصفات بالعربي</label><textarea id="description"></textarea></div><div style="grid-column:1/-1"><label>صور جديدة (اختار الصورة الرئيسية بعد الرفع)</label><input id="photos" type="file" accept="image/jpeg,image/png,image/webp" multiple><small>كل صورة حتى 4 ميجابايت؛ الحد الأقصى 10 صور في المرة.</small></div></div><div id="photoGallery" class="photos"></div><div class="actions"><button type="submit" class="green" id="save">حفظ في قاعدة البيانات</button><button type="button" class="secondary" id="cancel">إلغاء</button></div></form></section></section><p id="status" role="status"></p></main>
 <script type="module">
 import {createClient} from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
@@ -27,5 +27,41 @@ async function setCover(id){try{msg('جاري تغيير الصورة الرئي
 async function refreshEditing(){await load();images=boats.find(x=>x.id===editing)?.yacht_images||[];drawImages()}
 async function deletePhoto(img){if(!confirm('حذف هذه الصورة نهائيًا؟'))return;try{const a=await db.from('yacht_images').delete().eq('id',img.id);if(a.error)throw a.error;const b=await db.storage.from(BUCKET).remove([img.image_path]);if(b.error)msg('حُذف سجل الصورة لكن تعذر حذف الملف: '+b.error.message);else msg('تم حذف الصورة');await refreshEditing()}catch(e){msg('خطأ: '+e.message)}}
 $('yachtForm').onsubmit=async e=>{e.preventDefault();const btn=$('save');btn.disabled=true;msg('جاري الحفظ...');try{const obj={name_ar:$('name').value.trim(),length_ft:Number($('length').value),price_per_hour:Number($('price').value),capacity:Number($('capacity').value),bedrooms:Number($('bedrooms').value||0),bathrooms:Number($('bathrooms').value||0),fishing_price_per_hour:$('fishing').value?Number($('fishing').value):null,has_kitchen:$('kitchen').checked,description_ar:$('description').value.trim()};let id=editing;if(id){const r=await db.from('yachts').update(obj).eq('id',id).select('id').single();if(r.error)throw r.error}else{const r=await db.from('yachts').insert(obj).select('id').single();if(r.error)throw r.error;id=r.data.id;editing=id}const files=[...$('photos').files].slice(0,10);for(const file of files){if(file.size>4*1024*1024||!['image/jpeg','image/png','image/webp'].includes(file.type))throw Error('صيغة أو حجم الصورة غير مسموح: '+file.name);const ext=file.type.split('/')[1]==='jpeg'?'jpg':file.type.split('/')[1];const path=id+'/'+crypto.randomUUID()+'.'+ext;const up=await db.storage.from(BUCKET).upload(path,file,{contentType:file.type,upsert:false});if(up.error)throw up.error;const im=await db.from('yacht_images').insert({yacht_id:id,image_path:path,is_cover:images.length===0,sort_order:images.length});if(im.error)throw im.error;images.push({image_path:path,is_cover:images.length===0})}await load();$('editor').style.display='none';msg('تم الحفظ بنجاح في Supabase. موقع العملاء لم يتغير.')}catch(e){msg('تعذر الحفظ: '+e.message)}finally{btn.disabled=false}};
+
+const originalYachts=[
+{name_ar:'تيكنو مارين',name_en:'Tecno Marine',length_ft:62,capacity:20,bedrooms:3,bathrooms:3,has_kitchen:true,price_per_hour:700,description_ar:'3 غرف نوم، 3 حمامات، مطبخ',description_en:'3 Bedrooms · 3 Bathrooms · Kitchen',prefix:'tecno',count:7,cover:7},
+{name_ar:'هاوس بوت هيا',name_en:'Haya House Boat',length_ft:55,capacity:20,bedrooms:1,bathrooms:1,has_kitchen:false,price_per_hour:550,description_ar:'دورين، غرفة نوم، حمام',description_en:'2 Decks · 1 Bedroom · 1 Bathroom',prefix:'haya',count:7,cover:3},
+{name_ar:'جولف كرافت',name_en:'Golf Craft',length_ft:31,capacity:10,bedrooms:0,bathrooms:0,has_kitchen:false,price_per_hour:300,fishing_price_per_hour:350,description_ar:'رحلات الصيد 350 درهم/ساعة',description_en:'Fishing trips AED 350/hour',prefix:'golf',count:8,cover:2},
+{name_ar:'هاوس بوت ياف',name_en:'YAF House Boat',length_ft:80,capacity:35,bedrooms:1,bathrooms:1,has_kitchen:false,price_per_hour:800,description_ar:'دورين، غرفة نوم، حمام',description_en:'2 Decks · 1 Bedroom · 1 Bathroom',prefix:'yaf',count:5,cover:4}
+];
+$('importOriginal').onclick=async()=>{
+if(!confirm('استيراد اليخوت الأربعة بصورها الأصلية إلى Supabase؟ قد يستغرق رفع الصور دقيقة. لن يتغير موقع العملاء.'))return;
+const button=$('importOriginal');button.disabled=true;
+try{
+for(const boat of originalYachts){
+msg('جاري استيراد '+boat.name_ar+'...');
+const {data:existing,error:lookupError}=await db.from('yachts').select('id').eq('name_en',boat.name_en).limit(1);
+if(lookupError)throw lookupError;
+let id=existing?.[0]?.id;
+if(!id){const {prefix,count,cover,...record}=boat;const created=await db.from('yachts').insert(record).select('id').single();if(created.error)throw created.error;id=created.data.id}
+const {data:existingImages,error:imagesError}=await db.from('yacht_images').select('image_path').eq('yacht_id',id);
+if(imagesError)throw imagesError;
+for(let n=1;n<=boat.count;n++){
+const path=id+'/original-'+boat.prefix+'-'+n+'.jpg';
+if(existingImages?.some(im=>im.image_path===path))continue;
+msg('جاري رفع '+boat.name_ar+' — صورة '+n+' من '+boat.count);
+const response=await fetch('../images/'+boat.prefix+'-'+n+'.jpg');
+if(!response.ok)throw Error('تعذر قراءة الصورة '+boat.prefix+'-'+n+'.jpg');
+const blob=await response.blob();
+const uploaded=await db.storage.from(BUCKET).upload(path,blob,{contentType:'image/jpeg',upsert:true});
+if(uploaded.error)throw uploaded.error;
+const inserted=await db.from('yacht_images').insert({yacht_id:id,image_path:path,is_cover:n===boat.cover,sort_order:n});
+if(inserted.error)throw inserted.error;
+}
+}
+await load();msg('اكتمل استيراد اليخوت الأربعة وصورها إلى Supabase. موقع العملاء لم يتغير.');
+}catch(e){msg('توقف الاستيراد: '+e.message+' — يمكنك إعادة المحاولة لاستكمال الصور الناقصة.')}finally{button.disabled=false}
+};
+
 async function removeBoat(id){if(!confirm('هل تريد حذف اليخت من قاعدة البيانات نهائيًا؟'))return;try{const b=boats.find(x=>x.id===id);const r=await db.from('yachts').delete().eq('id',id);if(r.error)throw r.error;if(b.yacht_images?.length){const paths=b.yacht_images.map(x=>x.image_path);const s=await db.storage.from(BUCKET).remove(paths);if(s.error)msg('حُذف اليخت، لكن بعض الصور قد تبقى في التخزين')}else msg('تم حذف اليخت');await load()}catch(e){msg('تعذر الحذف: '+e.message)}}
 </script></body></html>
