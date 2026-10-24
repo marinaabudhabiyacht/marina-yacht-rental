@@ -11,7 +11,7 @@ const URL='https://vdtphmrcqyasgldwevyz.supabase.co',BUCKET='yacht-images';
 const $=id=>document.getElementById(id);let db=null,role=null,boats=[],editing=null,images=[];
 const msg=t=>$('status').textContent=t||'';
 function init(key){if(!key.startsWith('sb_publishable_'))throw Error('مفتاح النشر العام غير صحيح');db=createClient(URL,key,{auth:{persistSession:true,autoRefreshToken:true}});}
-async function bootstrap(){try{const response=await fetch('/api/public-config',{cache:'no-store'});if(!response.ok)throw Error('إعدادات الاتصال غير متاحة');const config=await response.json();init(config.supabasePublishableKey);await restore()}catch(e){msg('تعذر تهيئة الاتصال: '+e.message)}}bootstrap();
+async function bootstrap(){try{init('sb_publishable_Yt_kUVirX6xZaI5kpT-nww_q3qapmD8');await restore()}catch(e){msg('تعذر تهيئة الاتصال: '+e.message)}}bootstrap();
 async function restore(){const {data:{user}}=await db.auth.getUser();if(user)await enter(user)}
 async function enter(user){const {data,error}=await db.from('user_roles').select('role').eq('user_id',user.id).single();if(error||!['admin','employee'].includes(data?.role)){await db.auth.signOut();throw Error('هذا الحساب غير مصرح له بإدارة اليخوت')}role=data.role;$('who').textContent=user.email+' — '+(role==='admin'?'مدير':'موظف');$('login').style.display='none';$('dashboard').style.display='block';await load()}
 $('loginForm').onsubmit=async e=>{e.preventDefault();msg('جاري تسجيل الدخول...');try{if(!db)throw Error('انتظر تهيئة الاتصال ثم حاول مجددًا');const {data,error}=await db.auth.signInWithPassword({email:$('email').value.trim(),password:$('password').value});if(error)throw error;$('password').value='';await enter(data.user);msg('تم تسجيل الدخول')}catch(e){msg('تعذر الدخول: '+e.message)}};
